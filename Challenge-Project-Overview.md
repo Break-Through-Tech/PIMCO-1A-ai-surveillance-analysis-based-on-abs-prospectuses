@@ -62,7 +62,7 @@ Use these milestones to guide your work. Your team will create a **GitHub Projec
 # AI Due Diligence Agent for ABS Prospectuses
 
 **Company / Org:** PIMCO  
-**Challenge Advisor:** N/A  
+**Challenge Advisor:** Simon Fan, [Email address]    
 **Program:** Break Through Tech AI Studio - Fall 2026
 
 ---
