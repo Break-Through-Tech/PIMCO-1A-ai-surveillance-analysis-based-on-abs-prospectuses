@@ -63,6 +63,7 @@ Use these milestones to guide your work. Your team will create a **GitHub Projec
 
 **Company / Org:** PIMCO  
 **Challenge Advisor:** Simon Fan, [Email address]    
+**AI Studio Coach:** Darshan Ugale, darshan.ugale@breakthroughtech.org       
 **Program:** Break Through Tech AI Studio - Fall 2026
 
 ---
