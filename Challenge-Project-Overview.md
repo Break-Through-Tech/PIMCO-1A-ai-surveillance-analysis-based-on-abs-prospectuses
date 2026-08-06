@@ -37,11 +37,16 @@ The proposed project is intriguing with the potential for significant practical 
 
 Use these milestones to guide your work. Your team will create a **GitHub Projects board** to track tasks within each milestone.
 
-| Month       | Milestone                  | Key Activities                                         |
-|-------------|----------------------------|-------------------------------------------------------|
-| **September** | Data Understanding         | Explore dataset, handle missing values, document findings |
-| **October**   | Model Development          | Train baseline model, experiment with approaches, iterate |
-| **November**  | Evaluation & Presentation   | Finalize model, prepare presentation, document results |
+| Month | Milestone | Key Activities |
+| :--- | :--- | :--- |
+| September | Data Pipeline & Ingestion Setup | • Programmatically ingest ABS prospectuses and monthly servicing reports (424B / 10-D filings) from SEC EDGAR.<br>• Implement PDF layout parsing and text/table chunking pipelines.<br>• Extract baseline deal parameters (credit enhancement tiers, collateral pool attributes, trigger thresholds).<br>• Define evaluation benchmarks for extraction precision and metadata accuracy. |
+| October | Core Surveillance & Performance Tracking | • Build RAG and structured LLM pipelines to monitor ongoing pool performance (delinquency rates, loss severity, prepayment speeds).<br>• Develop automated comparative logic to detect trigger breaches, credit rating changes, or structural risk shifts relative to original prospectus terms.<br>• Conduct prompt optimization, error analysis, and hallucination checks on financial figures. |
+| November / December | Risk Alerting Dashboard & Deliverables | • Build an interactive Streamlit dashboard providing deal surveillance summaries, performance trend visualizations, and risk alerts.<br>• Integrate citation verification to map extracted surveillance metrics back to source prospectus pages/tables.<br>• Finalize clean, reproducible GitHub repository, technical documentation, and stakeholder presentation deck. |
+
+### Stretch Goals
+* **Automated Risk Escalation Flags:** Auto-generate priority alerts when key credit metrics breach predefined risk thresholds or covenant limits.
+* **Multi-Quarter Historical Trend Tracking:** Aggregate sequential monthly servicing reports (10-D filings) to plot multi-period credit performance and delinquency trends over time.
+* **Cross-Issuer Benchmarking Console:** Build an interactive comparison module in the Streamlit UI to benchmark deal performance across different asset classes and issuers (e.g., Auto vs. Equipment vs. Credit Card ABS).
 
 > **Note for the team:** Please create a GitHub Projects board in this repository to break these milestones into weekly tasks. Go to the **Projects** tab → **New project** → Choose **Board** → Add columns for each month.
 
