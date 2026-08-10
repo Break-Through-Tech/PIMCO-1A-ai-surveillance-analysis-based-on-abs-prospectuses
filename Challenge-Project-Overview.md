@@ -51,7 +51,7 @@ PIMCO is a leading global investment management firm, specializing in fixed inco
 ## 🎯 The Challenge
 
 ### Project Summary
-Build a deep agentic AI system using Openai-agents-sdk, or LangChain and LangGraph that autonomously search or scan the library of available ABS prospectus (downloadable from SEC website https://efts.sec.gov/EFTS/hits) — in order to identity potential risk defined by atypical or non-standard practice of clauses. E.g., user may search "is any ABS deal using the paper custody?", the agent is expected to search the document library, and list all the deals that using (or highly likely) using the paper custody.
+Build a deep agentic AI system using Openai-agents-sdk, or LangChain and LangGraph that autonomously search or scan the library of available ABS prospectus (downloadable from SEC website https://www.sec.gov/edgar/search/) — in order to identity potential risk defined by atypical or non-standard practice of clauses. E.g., user may search "is any ABS deal using the paper custody?", the agent is expected to search the document library, and list all the deals that using (or highly likely) using the paper custody.
 
 ### Success Criteria
 1. Meet the key deliverables and millstones described below
