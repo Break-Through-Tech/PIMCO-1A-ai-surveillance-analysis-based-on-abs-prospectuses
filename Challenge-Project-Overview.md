@@ -2,7 +2,7 @@
 
 > ## Challenge Advisor: Update & Finalize Your Project Overview
 >
-> > 💡 **These grey text instructions are just for you, the team's Challenge Advisor; please delete them once you have completed the steps below.**
+> > **Note —** **These grey text instructions are just for you, the team's Challenge Advisor; please delete them once you have completed the steps below.**
 >
 > We've pre-populated this Challenge Project Overview page — which is what will be shared with your Break Through Tech student team in August — using the details from your submission form. You should have received an email inviting you to join this repo as a Collaborator, enabling you to add files and make edits.
 > 
@@ -14,87 +14,106 @@
 > If you're unfamiliar with how to edit a page like this in GitHub, check out [this tutorial](https://ubc-lib-geo.github.io/gis-workshop-waml-template/content/handson/edit-readme.html) for a quick overview (start with step 2 and only edit this page), and [this guide](https://ubc-lib-geo.github.io/gis-workshop-waml-template/content/markdown.html) on how to use Markdown to compose text.
 >
 >
-> ❌ Remember that this is a public repo. Do NOT include: Proprietary data, PII, API keys, credentials, or anything confidential.
+> **Important —** Remember that this is a public repo. Do NOT include: Proprietary data, PII, API keys, credentials, or anything confidential.
 
-## 📋 BTT Internal Evaluation Notes
+## BTT Internal Evaluation Notes
 
 | Check | Status | Notes |
 |-------|--------|-------|
-| Python Compatibility | 🟡 | While the tech stack is predominantly Python, tools like LangChain and LangGraph may introduce additional complexity that requires careful integration and understanding from students. |
-| Data Readiness | 🟡 | The status of data readiness is unclear; the actual size and structure of the datasets have not been disclosed, which could lead to data preparation challenges that need to be assessed at the start of the project. |
-| Resource Check | 🟢 | No specialized hardware or proprietary software issues are identified in the submission. The tools indicated are available for student access. |
+| Python Compatibility | Green | Pure-Python stack (pandas, pypdf, an LLM/embedding client, numpy, scikit-learn, Streamlit). The heavier agent framework has been moved to an optional stretch goal, so the core project stays within reach of students with introductory CS/ML background. |
+| Data Readiness | Green | Dataset is now specified: ≤100 SEC EDGAR 424B ABS prospectuses, ≤1 GB, PDF/text, with clear preprocessing notes (text extraction, per-deal organization, table/scan noise). |
+| Resource Check | Green | No specialized hardware or proprietary software issues are identified in the submission. The tools indicated are available for student access. |
 
-**Student Fit Score:** 5/10  
+**Student Fit Score:** 8/10  
 **Technical Depth Score:** 7/10  
-**Overall Recommendation:** REVISE
+**Overall Recommendation:** REVISED (to be determined by BTT)
 
 **Advisor Feedback Draft:**
-The proposed project is intriguing with the potential for significant practical applications in the field of AI and finance. However, clarity on data size and structure is essential for a successful student experience. I recommend refining the project scope to better fit the student's current capabilities while allowing for incremental learning.
+The project offers a practical, well-scoped introduction to retrieval-augmented Q&A over real-world financial documents. The scope has been staged into three tiers — (1) data collection + parsing + metadata filtering, (2) embedding-based semantic Q&A, and (3) an optional agentic layer as a stretch goal — so every team can reach a meaningful deliverable while stronger teams still have room to grow. Dataset size and format are specified, and the evaluation approach (retrieval precision + LLM-as-judge) is appropriate for the student level.
 
 ---
 
 # AI Surveillance Analysis based on ABS Prospectuses
 
 **Company / Org:** PIMCO  
-**Challenge Advisor:** Simon Fan, [Email address]   
+**Challenge Advisor:** Simon Fan — _email intentionally left blank (will not be published on this public repo; please do not add it)._  
 **AI Studio Coach:** Darshan Ugale, darshan.ugale@breakthroughtech.org  
 **Program:** Break Through Tech AI Studio - Fall 2026
 
 ---
 
-## 🏢 About PIMCO
+## About PIMCO
 
 PIMCO is a leading global investment management firm, specializing in fixed income and alternative investments. Our focus is on leveraging innovative technology and data analytics to optimize investments and manage risk effectively.
 
 ---
 
-## 🎯 The Challenge
+## The Challenge
 
 ### Project Summary
-Build a deep agentic AI system using Openai-agents-sdk, or LangChain and LangGraph that autonomously search or scan the library of available ABS prospectus (downloadable from SEC website https://www.sec.gov/edgar/search/) — in order to identity potential risk defined by atypical or non-standard practice of clauses. E.g., user may search "is any ABS deal using the paper custody?", the agent is expected to search the document library, and list all the deals that using (or highly likely) using the paper custody.
+Build a **question-answering assistant over a library of SEC ABS prospectuses**. A user asks a plain-English question — for example, *"Which deals appear to use paper (physical) custody?"* — and the system searches the document collection and returns the most relevant deals along with the supporting text snippets.
+
+The project is intentionally **staged from simple to advanced** so that every team reaches a working deliverable:
+- **Start simple:** keyword / regular-expression search plus metadata filtering over parsed documents.
+- **Then add semantics:** embedding-based retrieval so the assistant can match meaning, not just exact words, and let an LLM summarize the answer with citations.
+- **Stretch goal (optional):** a small multi-step "agent" that plans, retrieves, reasons, and reports.
+
+Think of it as a lightweight, student-friendly version of a document-surveillance tool: the goal is learning the full retrieval-augmented Q&A workflow on real financial documents, not building a production system.
 
 ### Success Criteria
-1. Meet the key deliverables and millstones described below
-2. The AI agent has decent performance (e.g., 70-80% user can get satisfying answers from the Bot)
+1. Meet the key deliverables and milestones described below (reaching Milestone 1 alone is already a solid result).
+2. On a small held-out set of ~15–20 test questions, the assistant returns the relevant deal(s) among its top results and shows the supporting text/source for each answer.
 
 ### Project Milestones
 
-Below is the key deliverables:
-1. Data schema creation: downloading a good set of ABS deals' prospectus from the SEC, and prepare the indexing data schema (September)
-2. AI Agent using openai-agents-sdk or LangChain and LangGraph: Multi-node state graph: Planner → Retriever/AI Searching → Reasoner → Evaluator → Reporter (October)
-3. Build the user interface (testing and fine tuning the AI agent) (November)
+The deliverables are staged so each milestone builds on the previous one. **Finishing Milestone 1 counts as success; Milestones 2–3 raise the ceiling.**
+
+1. **Milestone 1 — Data collection, parsing & metadata filtering (September).** Download a set of ABS prospectuses (424B filings) from SEC EDGAR, extract the text from the PDFs, and build a simple index table (deal name / ticker / filing / extracted text). Support basic keyword or regular-expression search and filtering by metadata (e.g., year, deal type). *Reaching this milestone already meets the bar.*
+2. **Milestone 2 — Embedding-based semantic Q&A (October).** Add vector embeddings (e.g., `text-embedding-3-small`) and similarity search so users can ask natural-language questions, then have an LLM produce a short answer with citations back to the source deals.
+3. **Milestone 3 — Simple user interface + evaluation (November).** Wrap the assistant in a lightweight UI (e.g., Streamlit or Gradio) and evaluate it against the test-question set.
+4. **Stretch / bonus (optional, for teams that finish early).** Build a small multi-step agent (plan → retrieve → reason → report) — e.g. using the OpenAI Agents SDK — add an automatic answer-quality checker, or support cross-deal summarization. This is entirely optional and not required for a successful project.
 
 > **Note for the team:** Please create a GitHub Projects board in this repository to break these milestones into weekly tasks. Go to the **Projects** tab → **New project** → Choose **Board** → Add columns for each month.
 
 ---
 
-## 📊 Dataset
+## Dataset
 
 **Name and Source:** Real ABS prospectuses from SEC EDGAR 424B filings  
 **Format:** Text, PDF   
-**Size:** Less than or equal to 1 GB
+**Size:** ≤ 1 GB (roughly 50–100 filings is plenty to start)  
 **Location:** https://www.sec.gov/search-filings or https://www.sec.gov/edgar/search/
 
 ### Key Details
-- [Brief description of what's in the data]
-- [Any known limitations or preprocessing needed]
-- [Link to data dictionary or documentation, if available]
+- Publicly available offering documents (prospectuses) for asset-backed securities (ABS) deals — long, text-heavy PDFs describing deal structure, collateral, servicing, custody, and legal terms.
+- Preprocessing needed: extract text from PDFs (some filings are scanned or contain tables, which can add noise), then organize the text per deal for indexing and search.
+- Data is free and public via SEC EDGAR full-text search; no login, credentials, or proprietary data are required.
 
 ---
 
-## 🛠️ Suggested Approach
+## Suggested Approach
 
-**ML Problem Type:** Large Language Models (LLMs) / Generative AI
+**ML Problem Type:** Large Language Models (LLMs) / Retrieval-Augmented Generation (RAG)
+
+> The examples below are just starting points — teams are free to pick equivalent tools. Any LLM provider works (e.g. OpenAI, or OpenRouter, which offers many models including some free tiers).
 
 **Recommended Libraries:**
-- [e.g., pandas, scikit-learn, TensorFlow, Hugging Face]
+- `pandas`, `numpy` — data handling and the index table
+- `pypdf` / `PyPDF2` — PDF text extraction
+- `sec-edgar-downloader` (or plain `requests`) — pulling filings from EDGAR
+- An LLM / embedding client — e.g. `openai`, or any other provider (OpenRouter gives access to many models, including some free tiers). Embeddings such as `text-embedding-3-small` plus LLM answers.
+- `scikit-learn` — simple similarity / nearest-neighbor search
+- `streamlit` or `gradio` — the Milestone 3 user interface
+- *(Optional, stretch goal only:* an agent framework such as the OpenAI Agents SDK — not needed for the core project.)
 
 **Evaluation Metrics:**
-- [e.g., Accuracy, Precision/Recall, RMSE, BLEU score]
+- **Retrieval precision / recall @ k** — does the correct deal appear in the top-k results for each test question?
+- **LLM-as-judge** — use an LLM to rate whether each generated answer is correct and well-supported by the cited source.
+- Light manual spot-checks — confirm answers point to the right deal and text.
 
 ---
 
-## 📚 Resources to Get Started
+## Resources to Get Started
 
 The following resources will help your team understand the problem space and potential technical approaches for this project:
 
@@ -117,25 +136,19 @@ The following resources will help your team understand the problem space and pot
 
 ---
 
-## 🤝 How We'll Work Together
+## How We'll Work Together
 
 **Official check-ins:** During our biweekly 45-minute AI Studio Lab Section meeting block (2nd and 4th week of every month)
 
  **Other ways to reach out to me with questions:** 
-* [e.g., Your team's channel within Break Through Tech’s Discord space]
-* [e.g., Email; please copy your teammates and AI Studio Coach]
-* [e.g., Request a team check-in on Zoom]
-* [Note: I will aim to respond within 48 hours. Please reach out to your AI Studio Coach with urgent questions.]
-
-> 💡 **Challenge Advisor: Please update the above based on your availability and preference. If you are not able to answer questions or meet with fellows outside of the biweekly Lab Section check-ins, simply write in "N/A (only available during the official check-in times)"**
+* N/A — I'm available during the official biweekly Lab Section check-ins. For anything urgent or in between sessions, please reach out to the AI Studio Coach first.
 
 **Recommended free coding / collaboration tools**
-* […]
-* […]
-
+* GitHub (code, issues, and the project board)
+* OpenRouter (access to many LLMs, including some free tiers)
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 1. **Review this overview document** and note any questions for our first meeting
 2. **Begin reviewing the dataset** using the link above
@@ -145,6 +158,6 @@ I’m excited to work with you!
 
 ---
 
-## ❓ Questions?
+## Questions?
 
 Please bring any questions to our first meeting during the week of August 24th (Break Through Tech’s Bridge to Studio - Session C). 
