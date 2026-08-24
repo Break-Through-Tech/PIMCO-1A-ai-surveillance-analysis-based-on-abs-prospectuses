@@ -83,19 +83,18 @@ The deliverables are staged so each milestone builds on the previous one. **Fini
 The following resources will help your team understand the problem space and potential technical approaches for this project:
 
 **Background Reading:**
-- [e.g., Link to an article or blog post about the problem domain]
-- [e.g., Link to an industry report or case study]
+- [Asset Backed Securities (ABS) — Definition + Examples (Wall Street Prep)](https://www.wallstreetprep.com/knowledge/asset-backed-securities-abs/) — short, example-driven explainer of what ABS are and how they work, no jargon overload
 
 **Technical Tutorials:**
-- [e.g., Link to a free tutorial on the ML technique(s) involved]
-- [e.g., Link to documentation for a key library or tool]
+- [RAG from Scratch — Tutorial](https://dev.to/zachary62/retrieval-augmented-generation-rag-from-scratch-tutorial-for-dummies-508a) — simplest walkthrough of chunk → embed → retrieve → generate
+- [Prompt Engineering Guide: RAG for LLMs](https://www.promptingguide.ai/research/rag) — more conceptual depth once the team wants to go beyond basics
+- [OpenAI text-embedding-3-small model docs](https://developers.openai.com/api/docs/models/text-embedding-3-small) — official reference for the embedding model suggested in Milestone 2
 
 **Code Examples:**
-- [e.g., Link to a relevant GitHub repo]
-- [e.g., Link to a sample implementation or starter code]
+- [RAG and Streamlit Chatbot: Chat with Documents Using LLM](https://www.analyticsvidhya.com/blog/2024/04/rag-and-streamlit-chatbot-chat-with-documents-using-llm/) — end-to-end example wrapping a RAG pipeline in a Streamlit UI, relevant for Milestone 3
 
 **Other:**
-- [Links to any additional resources — e.g., papers, videos, podcasts, etc.]
+- [Asset-Backed Securities (ABS) — Definition, Pros, Cons (CFI)](https://corporatefinanceinstitute.com/resources/fixed-income/asset-backed-securities-abs/) — quick reference covering related terms like securitization, tranches, and collateral pools
 
 *Feel free to explore beyond these, and share anything interesting you find with me!*
 
