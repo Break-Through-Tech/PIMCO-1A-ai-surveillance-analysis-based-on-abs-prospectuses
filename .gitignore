@@ -1,5 +1,25 @@
 # Extracted text, 108MB, regenerate with: python src/run_extract.py
 data/text/
 
+# Python environments
+.venv/
+venv/
+env/
+
+# Python caches and test artifacts
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
