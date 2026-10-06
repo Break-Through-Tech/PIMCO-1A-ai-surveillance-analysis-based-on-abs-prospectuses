@@ -1,3 +1,6 @@
+# Extracted text, 108MB, regenerate with: python src/run_extract.py
+data/text/
+
 # Python environments
 .venv/
 venv/
