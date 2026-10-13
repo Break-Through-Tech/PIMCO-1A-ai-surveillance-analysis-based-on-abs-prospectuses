@@ -1,3 +1,6 @@
+# Chunked passages, regenerate with: python src/run_chunk.py
+data/chunks/
+
 # Extracted text, 108MB, regenerate with: python src/run_extract.py
 data/text/
 

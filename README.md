@@ -66,3 +66,57 @@ The validator uses only the Python standard library. It regenerates the cleaned 
 - `data/manifest_validation_report.csv` - detailed audit trail of every finding and action.
 - `data/manifest_validation_summary.md` - readable summary of the inventory and validation results.
 - `Issue1.md` - complete methodology, validation rules, limitations, and usage instructions.
+
+
+---
+
+## Chunking Passages for Semantic Retrieval
+
+Milestone 2 Task 1. Splits each prospectus into passages so they can be
+embedded, since a due diligence question is answered by one provision rather
+than a whole filing.
+
+Chunks follow the document's own sections rather than fixed windows. Each
+filing states its structure twice, in the table of contents and in the page
+footers, and the two agree for 99.9% of headings. That gives every chunk a real
+prospectus page number for citation. Passages are packed to an 1800 character
+budget.
+
+### Usage
+
+```
+python src/run_chunk.py        # writes data/chunks/ and data/chunk_index.csv
+python src/validate_chunks.py  # 8 checks, must pass before embedding
+```
+
+`data/chunks/` is gitignored, 154MB. `data/chunk_index.csv` is committed and
+carries per document quality metrics, so a reviewer can see the state of all
+128 documents without regenerating anything.
+
+### Chunk records
+
+One JSON object per line in `data/chunks/<document>.jsonl`:
+
+| field | meaning |
+|---|---|
+| `chunk_id`, `accession` | unique id, and the deal key that joins to `deal_index.csv` |
+| `section_title`, `section_kind` | the heading this passage sits under, and a coarse content class |
+| `page_start`, `page_end`, `toc_page` | prospectus page, for citation |
+| `line_start`, `line_end`, `char_start`, `char_end` | offsets into `data/text/`, so a passage can be checked against the source |
+| `word_share`, `toc_share` | prose versus table, and prose versus listing |
+| `text_sha1` | half the corpus is boilerplate repeated across filings |
+| `text` | the passage |
+
+Deal name, asset class and SEC URL are not copied in. They live in
+`data/deal_index.csv` and join on `accession`.
+
+`section_kind` and `word_share` are hints for filtering at embed time. Nothing
+is dropped during chunking, because re-chunking takes under a minute and
+re-embedding costs money.
+
+### Results
+
+86,219 chunks across 128 deals, 43,027 distinct. Heading recall median 0.992,
+minimum 0.929. All 8 validation checks pass, including a replay of Milestone 1
+keyword search confirming nothing findable before chunking became unfindable
+after.
