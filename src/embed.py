@@ -20,23 +20,47 @@ Usage:
 
 import json
 import pickle
+import time
 from pathlib import Path
 
 DATA = Path("data")
 CHUNKS = DATA / "chunks"
 VECTORS = DATA / "vectors"
 
+def load_env():
+    """Read .env from the repo root. Windows shells do not keep exports."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+
 DEFAULT_BACKEND = "tfidf"
 OPENAI_MODEL = "text-embedding-3-small"
 OPENAI_BATCH = 256
+OPENAI_RETRIES = 6
+
+# The key is shared across every PIMCO team, so rate limits are somebody else's
+# traffic as much as ours. Finished batches are written to a part file as they
+# land: a failure at batch 150 of 169 should not mean paying for the first 149
+# a second time.
+PART_SUFFIX = ".part.jsonl"
+
+
+_PASSAGES = None
 
 
 def load_passages():
-    """Distinct passages across the corpus.
+    """Distinct passages across the corpus. Cached, it reads 154MB.
 
     Returns (shas, texts, where), where `where` maps a sha to the chunk records
     carrying it, so a hit can be expanded back to every deal it appears in.
     """
+    global _PASSAGES
+    if _PASSAGES is not None:
+        return _PASSAGES
+
     where = {}
     for path in sorted(CHUNKS.glob("*.jsonl")):
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -45,7 +69,8 @@ def load_passages():
 
     shas = sorted(where)
     texts = [where[s][0]["text"] for s in shas]
-    return shas, texts, where
+    _PASSAGES = (shas, texts, where)
+    return _PASSAGES
 
 
 def _tfidf(texts):
@@ -61,23 +86,71 @@ def _tfidf(texts):
 def _openai(texts):
     import os
 
+    load_env()
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
         raise RuntimeError(
-            "OPENAI_API_KEY is not set. The team is waiting on API budget "
-            "approval; use the tfidf backend until then.")
+            "OPENAI_API_KEY is not set. Put it in a .env file at the repo root; "
+            ".gitignore already covers .env.")
 
     import numpy as np
     from openai import OpenAI
 
     client = OpenAI(api_key=key)
-    out = []
-    for i in range(0, len(texts), OPENAI_BATCH):
-        batch = client.embeddings.create(model=OPENAI_MODEL,
-                                         input=texts[i:i + OPENAI_BATCH])
-        out.extend(d.embedding for d in batch.data)
-        print(f"  embedded {min(i + OPENAI_BATCH, len(texts))}/{len(texts)}")
-    return np.array(out, dtype="float32"), None
+    part = VECTORS / ("openai" + PART_SUFFIX)
+    VECTORS.mkdir(parents=True, exist_ok=True)
+
+    done = {}
+    if part.exists():
+        for line in part.read_text(encoding="utf-8").splitlines():
+            rec = json.loads(line)
+            done[rec["i"]] = rec["v"]
+        print(f"  resuming, {len(done):,} passages already embedded")
+
+    with open(part, "a", encoding="utf-8") as fh:
+        for start in range(0, len(texts), OPENAI_BATCH):
+            batch = list(range(start, min(start + OPENAI_BATCH, len(texts))))
+            batch = [i for i in batch if i not in done]
+            if not batch:
+                continue
+            vectors = _embed_batch(client, [texts[i] for i in batch])
+            for i, vec in zip(batch, vectors):
+                done[i] = vec
+                fh.write(json.dumps({"i": i, "v": vec}) + "\n")
+            fh.flush()
+            print(f"  {len(done):,}/{len(texts):,}")
+
+    matrix = np.array([done[i] for i in range(len(texts))], dtype="float32")
+    part.unlink()
+    return matrix, None
+
+
+def _embed_batch(client, texts):
+    """One embeddings call, retrying on rate limits and transient failures."""
+    for attempt in range(OPENAI_RETRIES):
+        try:
+            resp = client.embeddings.create(model=OPENAI_MODEL, input=texts)
+            return [d.embedding for d in resp.data]
+        except Exception as exc:
+            name = type(exc).__name__
+            fatal = ("AuthenticationError", "PermissionDeniedError", "BadRequestError")
+            if name in fatal or attempt == OPENAI_RETRIES - 1:
+                raise
+            wait = 2 ** attempt
+            print(f"  {name}, retrying in {wait}s ({attempt + 1}/{OPENAI_RETRIES})")
+            time.sleep(wait)
+
+
+def estimate(texts):
+    """Batches and rough token count, so a run can be sized before paying."""
+    chars = sum(len(t) for t in texts)
+    tokens = chars // 4
+    return {
+        "passages": len(texts),
+        "batches": -(-len(texts) // OPENAI_BATCH),
+        "est_tokens": tokens,
+        "est_usd": round(tokens / 1_000_000 * 0.02, 3),
+    }
 
 
 BACKENDS = {"tfidf": _tfidf, "openai": _openai}
@@ -103,23 +176,40 @@ def load_cached(backend=DEFAULT_BACKEND):
         return pickle.load(fh)
 
 
-def main(backend=DEFAULT_BACKEND):
+def main(backend=DEFAULT_BACKEND, limit=None, dry_run=False):
+    load_env()
     VECTORS.mkdir(parents=True, exist_ok=True)
     shas, texts, where = load_passages()
     chunks = sum(len(v) for v in where.values())
     print(f"{chunks:,} chunks -> {len(shas):,} distinct passages "
           f"({100 * len(shas) / chunks:.1f}%)")
 
+    if limit:
+        shas, texts = shas[:limit], texts[:limit]
+        print(f"LIMITED to the first {limit:,} passages")
+
+    if backend == "openai":
+        est = estimate(texts)
+        print(f"  {est['batches']} batches, ~{est['est_tokens']:,} tokens, "
+              f"~${est['est_usd']}")
+        if dry_run:
+            print("dry run, no API calls made")
+            return
+
     print(f"building vectors with backend {backend!r}")
     matrix, model = build_vectors(texts, backend)
     print(f"  matrix {matrix.shape}")
 
-    with open(cache_path(backend), "wb") as fh:
+    name = backend if not limit else f"{backend}-smoke"
+    with open(cache_path(name), "wb") as fh:
         pickle.dump({"shas": shas, "matrix": matrix, "model": model}, fh)
-    print(f"wrote {cache_path(backend)}")
+    print(f"wrote {cache_path(name)}")
 
 
 if __name__ == "__main__":
     import sys
 
-    main(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_BACKEND)
+    args = sys.argv[1:]
+    backend = args[0] if args and not args[0].startswith("-") else DEFAULT_BACKEND
+    limit = next((int(a.split("=")[1]) for a in args if a.startswith("--limit=")), None)
+    main(backend, limit=limit, dry_run="--dry-run" in args)

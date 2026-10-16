@@ -23,7 +23,7 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
 sys.path.insert(0, str(Path(__file__).parent))
-from embed import DEFAULT_BACKEND, load_cached, load_passages
+from embed import DEFAULT_BACKEND, load_cached, load_env, load_passages
 
 DATA = Path("data")
 INDEX = DATA / "deal_index.csv"
@@ -59,6 +59,8 @@ def embed_query(text, backend, model):
 
         from openai import OpenAI
         from embed import OPENAI_MODEL
+
+        load_env()
 
         client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         vec = client.embeddings.create(model=OPENAI_MODEL, input=[text]).data[0].embedding
