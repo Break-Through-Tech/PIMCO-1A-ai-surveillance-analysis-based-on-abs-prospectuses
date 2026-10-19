@@ -113,7 +113,7 @@ def _openai(texts):
             batch = [i for i in batch if i not in done]
             if not batch:
                 continue
-            vectors = _embed_batch(client, [texts[i] for i in batch])
+            vectors = _embed_batch([texts[i] for i in batch])
             for i, vec in zip(batch, vectors):
                 done[i] = vec
                 fh.write(json.dumps({"i": i, "v": vec}) + "\n")
@@ -125,11 +125,11 @@ def _openai(texts):
     return matrix, None
 
 
-def _embed_batch(client, texts):
+def _embed_batch(texts):
     """One embeddings call, retrying on rate limits and transient failures."""
     for attempt in range(OPENAI_RETRIES):
         try:
-            resp = client.embeddings.create(model=OPENAI_MODEL, input=texts)
+            resp = client().embeddings.create(model=OPENAI_MODEL, input=texts)
             return [d.embedding for d in resp.data]
         except Exception as exc:
             name = type(exc).__name__
@@ -167,13 +167,81 @@ def cache_path(backend):
     return VECTORS / f"{backend}.pkl"
 
 
+def matrix_path(backend):
+    return VECTORS / f"{backend}.npy"
+
+
+_CACHE = {}
+_CLIENT = None
+
+
+def client():
+    """One OpenAI client per process.
+
+    Building a client opens a connection, which measured at about 10 seconds
+    on this network. Reused, the same embedding call takes 0.25s. Creating one
+    per query made every question cost 10 seconds for no reason.
+    """
+    global _CLIENT
+    if _CLIENT is None:
+        import os
+
+        from openai import OpenAI
+
+        load_env()
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "OPENAI_API_KEY is not set. Put it in a .env file at the repo "
+                "root; .gitignore already covers .env.")
+        _CLIENT = OpenAI(api_key=key)
+    return _CLIENT
+
+
+def save_cached(backend, shas, matrix, model):
+    """Store vectors, keeping a dense matrix out of the pickle.
+
+    Unpickling a 266MB dense array costs about 10 seconds. The same array as
+    .npy memory-maps in milliseconds, which is the difference between ask.py
+    answering immediately and sitting silent through a demo. Sparse matrices
+    stay in the pickle; scipy does not memory-map and they load fast anyway.
+    """
+    import numpy as np
+
+    VECTORS.mkdir(parents=True, exist_ok=True)
+    dense = isinstance(matrix, np.ndarray)
+    if dense:
+        np.save(matrix_path(backend), matrix)
+    with open(cache_path(backend), "wb") as fh:
+        pickle.dump({"shas": shas, "matrix": None if dense else matrix,
+                     "model": model, "dense": dense}, fh)
+
+
 def load_cached(backend=DEFAULT_BACKEND):
-    """Vectors from an earlier build, or None."""
+    """Vectors from an earlier build, or None. Cached per process."""
+    if backend in _CACHE:
+        return _CACHE[backend]
+
     path = cache_path(backend)
     if not path.exists():
         return None
     with open(path, "rb") as fh:
-        return pickle.load(fh)
+        blob = pickle.load(fh)
+
+    if blob.get("dense"):
+        import numpy as np
+
+        if not matrix_path(backend).exists():
+            raise FileNotFoundError(
+                f"{cache_path(backend)} expects {matrix_path(backend)}, which is "
+                f"missing. Rebuild with: python src/embed.py {backend}")
+        blob["matrix"] = np.load(matrix_path(backend), mmap_mode="r")
+    elif blob.get("matrix") is None:
+        raise ValueError(
+            f"{cache_path(backend)} was written by an older version. Rebuild "
+            f"with: python src/embed.py {backend}")
+    _CACHE[backend] = blob
+    return blob
 
 
 def main(backend=DEFAULT_BACKEND, limit=None, dry_run=False):
@@ -201,8 +269,7 @@ def main(backend=DEFAULT_BACKEND, limit=None, dry_run=False):
     print(f"  matrix {matrix.shape}")
 
     name = backend if not limit else f"{backend}-smoke"
-    with open(cache_path(name), "wb") as fh:
-        pickle.dump({"shas": shas, "matrix": matrix, "model": model}, fh)
+    save_cached(name, shas, matrix, model)
     print(f"wrote {cache_path(name)}")
 
 

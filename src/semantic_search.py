@@ -15,6 +15,7 @@ Usage:
     search("where are collections deposited?", issuer="Toyota")
 """
 
+import pickle
 import sys
 from pathlib import Path
 
@@ -23,7 +24,7 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
 sys.path.insert(0, str(Path(__file__).parent))
-from embed import DEFAULT_BACKEND, load_cached, load_env, load_passages
+from embed import DEFAULT_BACKEND, client, load_cached, load_passages
 
 DATA = Path("data")
 INDEX = DATA / "deal_index.csv"
@@ -50,21 +51,42 @@ def matching_accessions(deals, issuer=None, year=None, asset_class=None, deal=No
     return set(keep.accession)
 
 
+# Opening a connection to the API costs about 10 seconds on this network, and
+# ask.py runs one question per process, so it pays that every time. Questions
+# repeat constantly during a demo or an evaluation sweep, so their vectors are
+# kept on disk and a repeat never touches the API at all.
+QUERY_CACHE = DATA / "vectors" / "queries.pkl"
+_QUERIES = None
+
+
+def query_cache():
+    global _QUERIES
+    if _QUERIES is None:
+        try:
+            with open(QUERY_CACHE, "rb") as fh:
+                _QUERIES = pickle.load(fh)
+        except Exception:
+            _QUERIES = {}
+    return _QUERIES
+
+
 def embed_query(text, backend, model):
     """Put the question in the same space as the passages."""
     if backend == "tfidf":
         return model.transform([text])
     if backend == "openai":
-        import os
-
-        from openai import OpenAI
         from embed import OPENAI_MODEL
 
-        load_env()
-
-        client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-        vec = client.embeddings.create(model=OPENAI_MODEL, input=[text]).data[0].embedding
-        return np.array([vec], dtype="float32")
+        cache = query_cache()
+        if text in cache:
+            return cache[text]
+        resp = client().embeddings.create(model=OPENAI_MODEL, input=[text])
+        vec = np.array([resp.data[0].embedding], dtype="float32")
+        cache[text] = vec
+        QUERY_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        with open(QUERY_CACHE, "wb") as fh:
+            pickle.dump(cache, fh)
+        return vec
     raise ValueError(f"no query path for backend {backend!r}")
 
 
