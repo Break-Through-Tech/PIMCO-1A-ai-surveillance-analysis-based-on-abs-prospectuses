@@ -51,10 +51,8 @@ def matching_accessions(deals, issuer=None, year=None, asset_class=None, deal=No
     return set(keep.accession)
 
 
-# Opening a connection to the API costs about 10 seconds on this network, and
-# ask.py runs one question per process, so it pays that every time. Questions
-# repeat constantly during a demo or an evaluation sweep, so their vectors are
-# kept on disk and a repeat never touches the API at all.
+# ask.py runs one question per process and pays ~10s opening a connection each
+# time, so query vectors persist and a repeated question skips the API.
 QUERY_CACHE = DATA / "vectors" / "queries.pkl"
 _QUERIES = None
 
@@ -105,10 +103,8 @@ def search(question, backend=DEFAULT_BACKEND, issuer=None, year=None,
     shas, matrix, model = cached["shas"], cached["matrix"], cached["model"]
     _, _, where = load_passages()
 
-    # Vectors are built from the chunks, so a re-chunk without a re-embed
-    # leaves them describing passages that no longer exist. The failure is
-    # silent otherwise: new passages are simply unsearchable and the filing
-    # looks indexed because it shares boilerplate with older ones.
+    # A re-chunk without a re-embed leaves new passages unsearchable while the
+    # filing still looks indexed, since it shares boilerplate with older ones.
     if len(shas) != len(where) or shas[0] not in where or shas[-1] not in where:
         raise ValueError(
             f"vectors for {backend!r} cover {len(shas):,} passages but the chunks "
@@ -117,9 +113,8 @@ def search(question, backend=DEFAULT_BACKEND, issuer=None, year=None,
     allowed = matching_accessions(deals, issuer, year, asset_class, deal)
     by_acc = {d.accession: d for d in deals.itertuples()}
 
-    # Filter first: keep only passages that appear in a surviving deal and sit
-    # in a section kind worth searching. Index listings and static pool tables
-    # are excluded by default rather than dropped at chunk time.
+    # Filter first. Index listings and static pool tables are excluded here
+    # rather than dropped at chunk time, so the choice stays reversible.
     rows, keep_recs = [], []
     for i, sha in enumerate(shas):
         recs = [r for r in where[sha]
@@ -138,9 +133,8 @@ def search(question, backend=DEFAULT_BACKEND, issuer=None, year=None,
     for rank in order:
         if scores[rank] <= 0:
             continue
-        # One record per filing. A passage can occur several times inside one
-        # document (65 do, up to 8 times), and counting records would report
-        # the same deal repeatedly.
+        # One record per filing. 65 passages recur within a single document,
+        # up to 8 times, and counting records would repeat the deal.
         recs, seen = [], set()
         for r in keep_recs[rank]:
             if r["accession"] not in seen:

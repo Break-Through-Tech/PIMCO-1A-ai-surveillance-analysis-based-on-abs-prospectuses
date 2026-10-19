@@ -41,10 +41,8 @@ OPENAI_MODEL = "text-embedding-3-small"
 OPENAI_BATCH = 256
 OPENAI_RETRIES = 6
 
-# The key is shared across every PIMCO team, so rate limits are somebody else's
-# traffic as much as ours. Finished batches are written to a part file as they
-# land: a failure at batch 150 of 169 should not mean paying for the first 149
-# a second time.
+# Finished batches land in a part file as they go. A failure at batch 150 of
+# 169 should not mean paying for the first 149 again.
 PART_SUFFIX = ".part.jsonl"
 
 
@@ -52,10 +50,10 @@ _PASSAGES = None
 
 
 def load_passages():
-    """Distinct passages across the corpus. Cached, it reads 154MB.
+    """Distinct passages, as (shas, texts, where). Cached, it reads 154MB.
 
-    Returns (shas, texts, where), where `where` maps a sha to the chunk records
-    carrying it, so a hit can be expanded back to every deal it appears in.
+    `where` maps a sha to the chunk records carrying it, so a hit expands back
+    to every deal it appears in.
     """
     global _PASSAGES
     if _PASSAGES is not None:
@@ -76,8 +74,8 @@ def load_passages():
 def _tfidf(texts):
     from sklearn.feature_extraction.text import TfidfVectorizer
 
-    # sublinear_tf because these documents repeat a term many times inside one
-    # passage without it mattering nine times as much.
+    # sublinear_tf: these filings repeat a term many times in one passage
+    # without it mattering proportionally.
     model = TfidfVectorizer(stop_words="english", sublinear_tf=True,
                             min_df=3, max_df=0.6, ngram_range=(1, 2))
     return model.fit_transform(texts), model
@@ -100,9 +98,8 @@ def _openai(texts):
     part = VECTORS / ("openai" + PART_SUFFIX)
     VECTORS.mkdir(parents=True, exist_ok=True)
 
-    # Keyed by sha, not by position. Position alone is wrong the moment the
-    # corpus is re-chunked: sorted(where) shifts and every later vector would
-    # be paired with a different passage, silently and with the right shape.
+    # Keyed by sha, not position. A re-chunk shifts sorted(where), and position
+    # alone would pair every later vector with the wrong passage.
     done = {}
     if part.exists():
         stale = 0
@@ -195,9 +192,8 @@ _CLIENT = None
 def client():
     """One OpenAI client per process.
 
-    Building a client opens a connection, which measured at about 10 seconds
-    on this network. Reused, the same embedding call takes 0.25s. Creating one
-    per query made every question cost 10 seconds for no reason.
+    Opening the connection measured at 10s here, the call itself at 0.25s, and
+    the old code built a client per query.
     """
     global _CLIENT
     if _CLIENT is None:
@@ -218,10 +214,8 @@ def client():
 def save_cached(backend, shas, matrix, model):
     """Store vectors, keeping a dense matrix out of the pickle.
 
-    Unpickling a 266MB dense array costs about 10 seconds. The same array as
-    .npy memory-maps in milliseconds, which is the difference between ask.py
-    answering immediately and sitting silent through a demo. Sparse matrices
-    stay in the pickle; scipy does not memory-map and they load fast anyway.
+    A .npy sidecar memory-maps, so 266MB never enters the process. Sparse
+    matrices stay in the pickle since scipy does not memory-map.
     """
     import numpy as np
 

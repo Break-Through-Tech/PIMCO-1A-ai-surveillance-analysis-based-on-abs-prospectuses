@@ -31,11 +31,7 @@ def wrap(text, indent="  "):
 
 
 def label(deal):
-    """Deal name with its series, since master trusts share one name.
-
-    All 10 Verizon filings are "Verizon Master Trust" and differ only by
-    series, so without it a list of them reads like a bug.
-    """
+    """Deal name with its series. All 10 Verizon filings share one name."""
     name = deal["deal_name"]
     series = deal.get("series", "")
     return f"{name} {series}".strip() if series and series not in name else name
