@@ -104,6 +104,15 @@ def search(question, backend=DEFAULT_BACKEND, issuer=None, year=None,
 
     shas, matrix, model = cached["shas"], cached["matrix"], cached["model"]
     _, _, where = load_passages()
+
+    # Vectors are built from the chunks, so a re-chunk without a re-embed
+    # leaves them describing passages that no longer exist. The failure is
+    # silent otherwise: new passages are simply unsearchable and the filing
+    # looks indexed because it shares boilerplate with older ones.
+    if len(shas) != len(where) or shas[0] not in where or shas[-1] not in where:
+        raise ValueError(
+            f"vectors for {backend!r} cover {len(shas):,} passages but the chunks "
+            f"hold {len(where):,}. Rebuild with: python src/embed.py {backend}")
     deals = load_deals()
     allowed = matching_accessions(deals, issuer, year, asset_class, deal)
     by_acc = {d.accession: d for d in deals.itertuples()}
@@ -129,7 +138,14 @@ def search(question, backend=DEFAULT_BACKEND, issuer=None, year=None,
     for rank in order:
         if scores[rank] <= 0:
             continue
-        recs = keep_recs[rank]
+        # One record per filing. A passage can occur several times inside one
+        # document (65 do, up to 8 times), and counting records would report
+        # the same deal repeatedly.
+        recs, seen = [], set()
+        for r in keep_recs[rank]:
+            if r["accession"] not in seen:
+                seen.add(r["accession"])
+                recs.append(r)
         first = recs[0]
         out.append({
             "score": round(float(scores[rank]), 4),
@@ -138,6 +154,8 @@ def search(question, backend=DEFAULT_BACKEND, issuer=None, year=None,
             "n_deals": len(recs),
             "deals": [{
                 "deal_name": by_acc[r["accession"]].deal_name,
+                "series": by_acc[r["accession"]].series,
+                "accession": r["accession"],
                 "filing_date": by_acc[r["accession"]].filing_date,
                 "asset_class": by_acc[r["accession"]].asset_class,
                 "page": r["page_start"],

@@ -100,12 +100,26 @@ def _openai(texts):
     part = VECTORS / ("openai" + PART_SUFFIX)
     VECTORS.mkdir(parents=True, exist_ok=True)
 
+    # Keyed by sha, not by position. Position alone is wrong the moment the
+    # corpus is re-chunked: sorted(where) shifts and every later vector would
+    # be paired with a different passage, silently and with the right shape.
     done = {}
     if part.exists():
+        stale = 0
         for line in part.read_text(encoding="utf-8").splitlines():
-            rec = json.loads(line)
-            done[rec["i"]] = rec["v"]
-        print(f"  resuming, {len(done):,} passages already embedded")
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                stale += 1
+                continue
+            if rec.get("sha") in wanted:
+                done[rec["sha"]] = rec["v"]
+            else:
+                stale += 1
+        print(f"  resuming, {len(done):,} already embedded"
+              + (f", {stale:,} stale entries dropped" if stale else ""))
 
     with open(part, "a", encoding="utf-8") as fh:
         for start in range(0, len(texts), OPENAI_BATCH):
@@ -154,12 +168,15 @@ def estimate(texts):
 
 
 BACKENDS = {"tfidf": _tfidf, "openai": _openai}
+NEEDS_SHAS = {"openai"}
 
 
-def build_vectors(texts, backend=DEFAULT_BACKEND):
+def build_vectors(texts, backend=DEFAULT_BACKEND, shas=None):
     """Vectors for these passages, in order."""
     if backend not in BACKENDS:
         raise ValueError(f"unknown backend {backend!r}, have {sorted(BACKENDS)}")
+    if backend in NEEDS_SHAS:
+        return BACKENDS[backend](texts, shas)
     return BACKENDS[backend](texts)
 
 
@@ -265,18 +282,27 @@ def main(backend=DEFAULT_BACKEND, limit=None, dry_run=False):
             return
 
     print(f"building vectors with backend {backend!r}")
-    matrix, model = build_vectors(texts, backend)
+    matrix, model = build_vectors(texts, backend, shas)
     print(f"  matrix {matrix.shape}")
 
     name = backend if not limit else f"{backend}-smoke"
     save_cached(name, shas, matrix, model)
     print(f"wrote {cache_path(name)}")
 
+    part = VECTORS / (name + PART_SUFFIX)
+    if part.exists():
+        part.unlink()
+
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    args = sys.argv[1:]
-    backend = args[0] if args and not args[0].startswith("-") else DEFAULT_BACKEND
-    limit = next((int(a.split("=")[1]) for a in args if a.startswith("--limit=")), None)
-    main(backend, limit=limit, dry_run="--dry-run" in args)
+    ap = argparse.ArgumentParser(description="Build passage vectors.")
+    ap.add_argument("backend", nargs="?", default=DEFAULT_BACKEND,
+                    choices=sorted(BACKENDS))
+    ap.add_argument("--limit", type=int,
+                    help="embed only the first N passages, for a smoke test")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="report batches and cost without calling the API")
+    parsed = ap.parse_args()
+    main(parsed.backend, limit=parsed.limit, dry_run=parsed.dry_run)

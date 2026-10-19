@@ -30,6 +30,17 @@ def wrap(text, indent="  "):
             print(indent + para)
 
 
+def label(deal):
+    """Deal name with its series, since master trusts share one name.
+
+    All 10 Verizon filings are "Verizon Master Trust" and differ only by
+    series, so without it a list of them reads like a bug.
+    """
+    name = deal["deal_name"]
+    series = deal.get("series", "")
+    return f"{name} {series}".strip() if series and series not in name else name
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("question")
@@ -54,10 +65,10 @@ def main():
     for n, hit in enumerate(hits, 1):
         print("\n" + "=" * WIDTH)
         lead = hit["deals"][0]
-        print(f"[{n}] {lead['deal_name']}  p{lead['page']}   score {hit['score']}")
+        print(f"[{n}] {label(lead)}  p{lead['page']}   score {hit['score']}")
         print(f"    {hit['section_title'][:66]}")
         if hit["n_deals"] > 1:
-            others = ", ".join(d["deal_name"] for d in hit["deals"][1:4])
+            others = ", ".join(label(d) for d in hit["deals"][1:4])
             more = f" +{hit['n_deals'] - 4} more" if hit["n_deals"] > 4 else ""
             print(f"    also in {hit['n_deals'] - 1} other deal(s): {others}{more}")
         print("-" * WIDTH)
