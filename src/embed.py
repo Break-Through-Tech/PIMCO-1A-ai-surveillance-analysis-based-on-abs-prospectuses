@@ -81,20 +81,10 @@ def _tfidf(texts):
     return model.fit_transform(texts), model
 
 
-def _openai(texts):
-    import os
-
-    load_env()
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not set. Put it in a .env file at the repo root; "
-            ".gitignore already covers .env.")
-
+def _openai(texts, shas):
     import numpy as np
-    from openai import OpenAI
 
-    client = OpenAI(api_key=key)
+    wanted = set(shas)
     part = VECTORS / ("openai" + PART_SUFFIX)
     VECTORS.mkdir(parents=True, exist_ok=True)
 
@@ -120,20 +110,19 @@ def _openai(texts):
 
     with open(part, "a", encoding="utf-8") as fh:
         for start in range(0, len(texts), OPENAI_BATCH):
-            batch = list(range(start, min(start + OPENAI_BATCH, len(texts))))
-            batch = [i for i in batch if i not in done]
+            batch = [i for i in range(start, min(start + OPENAI_BATCH, len(texts)))
+                     if shas[i] not in done]
             if not batch:
                 continue
-            vectors = _embed_batch([texts[i] for i in batch])
-            for i, vec in zip(batch, vectors):
-                done[i] = vec
-                fh.write(json.dumps({"i": i, "v": vec}) + "\n")
+            for i, vec in zip(batch, _embed_batch([texts[i] for i in batch])):
+                done[shas[i]] = vec
+                fh.write(json.dumps({"sha": shas[i], "v": vec}) + '\n')
             fh.flush()
             print(f"  {len(done):,}/{len(texts):,}")
 
-    matrix = np.array([done[i] for i in range(len(texts))], dtype="float32")
-    part.unlink()
-    return matrix, None
+    # main() removes the part file once the cache is written. Deleting it here
+    # would throw away a paid run if the save then failed.
+    return np.array([done[s] for s in shas], dtype="float32"), None
 
 
 def _embed_batch(texts):
