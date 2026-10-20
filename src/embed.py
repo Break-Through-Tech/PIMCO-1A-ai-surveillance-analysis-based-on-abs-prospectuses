@@ -5,17 +5,14 @@ repeated text: 86,219 chunks collapse to 43,027 distinct passages, and one
 passage appears in 38 deals across 7 depositors. Embedding each one once halves
 the work and keeps a single passage from filling nine of ten result slots.
 
-The backend is pluggable because the team is waiting on API budget approval.
-Nothing here requires a key to run.
-
-    tfidf   development placeholder. No key, no download, seconds to build.
-            It is lexical, not semantic, so it does not satisfy Milestone 2 on
-            its own. It exists so the rest of the pipeline can be built and
-            tested now, and as a baseline to measure real embeddings against.
-    openai  text-embedding-3-small. Needs OPENAI_API_KEY.
+    openai  text-embedding-3-small, what search uses. Needs OPENAI_API_KEY.
+    tfidf   lexical baseline. No key, seconds to build, and much weaker, so it
+            is there to measure against rather than to answer with.
 
 Usage:
-    python src/embed.py            # build vectors for the default backend
+    python src/embed.py                    # tfidf, free
+    python src/embed.py openai --dry-run   # size the paid build first
+    python src/embed.py openai
 """
 
 import json
@@ -36,7 +33,10 @@ def load_env():
     load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
-DEFAULT_BACKEND = "tfidf"
+DEFAULT_BACKEND = "openai"
+# Building defaults to tfidf instead. main() deletes the openai part file after
+# a build, so a bare run on openai would pay to re-embed everything.
+BUILD_BACKEND = "tfidf"
 OPENAI_MODEL = "text-embedding-3-small"
 OPENAI_BATCH = 256
 OPENAI_RETRIES = 6
@@ -157,7 +157,7 @@ BACKENDS = {"tfidf": _tfidf, "openai": _openai}
 NEEDS_SHAS = {"openai"}
 
 
-def build_vectors(texts, backend=DEFAULT_BACKEND, shas=None):
+def build_vectors(texts, backend=BUILD_BACKEND, shas=None):
     """Vectors for these passages, in order."""
     if backend not in BACKENDS:
         raise ValueError(f"unknown backend {backend!r}, have {sorted(BACKENDS)}")
@@ -244,7 +244,7 @@ def load_cached(backend=DEFAULT_BACKEND):
     return blob
 
 
-def main(backend=DEFAULT_BACKEND, limit=None, dry_run=False):
+def main(backend=BUILD_BACKEND, limit=None, dry_run=False):
     load_env()
     VECTORS.mkdir(parents=True, exist_ok=True)
     shas, texts, where = load_passages()
@@ -281,7 +281,7 @@ if __name__ == "__main__":
     import argparse
 
     ap = argparse.ArgumentParser(description="Build passage vectors.")
-    ap.add_argument("backend", nargs="?", default=DEFAULT_BACKEND,
+    ap.add_argument("backend", nargs="?", default=BUILD_BACKEND,
                     choices=sorted(BACKENDS))
     ap.add_argument("--limit", type=int,
                     help="embed only the first N passages, for a smoke test")
