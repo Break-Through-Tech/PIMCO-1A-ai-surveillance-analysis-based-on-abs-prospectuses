@@ -105,10 +105,10 @@ def search(question, backend=DEFAULT_BACKEND, issuer=None, year=None,
 
     # A re-chunk without a re-embed leaves new passages unsearchable while the
     # filing still looks indexed, since it shares boilerplate with older ones.
-    if len(shas) != len(where) or shas[0] not in where or shas[-1] not in where:
+    if set(shas) != where.keys():
         raise ValueError(
-            f"vectors for {backend!r} cover {len(shas):,} passages but the chunks "
-            f"hold {len(where):,}. Rebuild with: python src/embed.py {backend}")
+            f"vectors for {backend!r} were built from different chunks than "
+            f"data/chunks now holds. Rebuild with: python src/embed.py {backend}")
     deals = load_deals()
     allowed = matching_accessions(deals, issuer, year, asset_class, deal)
     by_acc = {d.accession: d for d in deals.itertuples()}
