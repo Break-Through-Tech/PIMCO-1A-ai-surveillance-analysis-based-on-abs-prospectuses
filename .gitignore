@@ -1,3 +1,6 @@
+# Embedding vectors, regenerate with: python src/embed.py
+data/vectors/
+
 # Chunked passages, regenerate with: python src/run_chunk.py
 data/chunks/
 
