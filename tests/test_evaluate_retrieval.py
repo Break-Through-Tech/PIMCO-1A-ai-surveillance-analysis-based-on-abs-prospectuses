@@ -1,6 +1,10 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
+from functools import partial
+
+import numpy as np
 from pathlib import Path
 
 import pandas as pd
@@ -59,7 +63,7 @@ class EvaluateRetrievalTests(unittest.TestCase):
 
     def test_rejects_accession_not_in_deal_index(self):
         def retrieve(query, top_k):
-            return [{"accession": "unknown"}]
+            return [{"accession": "unknown", "text": "Unrelated"}]
 
         with self.assertRaisesRegex(ValueError, "absent from deal_index"):
             evaluate_questions([self.question], retrieve, self.deals)
@@ -124,6 +128,58 @@ class EvaluateRetrievalTests(unittest.TestCase):
         self.assertFalse(row["passed_at_k"])
         self.assertEqual(row["passage_recall_at_k"], 0.5)
         self.assertEqual(row["missing_supporting_deal_ids"], "c")
+
+    def test_shared_passage_matches_each_expected_deal_at_same_rank(self):
+        row = evaluate_questions([self.question], lambda query, top_k: [
+            {"text": "Evidence B and Evidence C", "score": 0.8,
+             "deals": [{"accession": "a"}, {"accession": "b"}, {"accession": "c"}]}],
+             self.deals)[0]
+        self.assertTrue(row["passed_at_k"])
+        self.assertEqual(row["reciprocal_rank"], 1)
+        self.assertEqual(len(json.loads(row["retrieved_passages"])), 1)
+
+    def test_shared_passages_do_not_consume_extra_ranks(self):
+        shared = {"text": "Other", "deals": [{"accession": "a"}, {"accession": "c"}]}
+        row = evaluate_questions([self.single_deal_question()], lambda query, top_k:
+            [shared] * 4 + [{"text": "Evidence B", "deals": [{"accession": "b"}]}],
+            self.deals)[0]
+        self.assertTrue(row["passed_at_k"])
+        self.assertEqual(row["passage_reciprocal_rank"], 0.2)
+
+    def test_shared_passage_at_six_is_excluded(self):
+        row = evaluate_questions([self.single_deal_question()], lambda query, top_k:
+            [{"text": "Other", "deals": [{"accession": "a"}]}] * 5 +
+            [{"text": "Evidence B", "deals": [{"accession": "b"}]}], self.deals)[0]
+        self.assertFalse(row["passed_at_k"])
+
+    def test_rejects_malformed_grouped_results(self):
+        for citations in ([], [{"deal_name": "No accession"}], "invalid"):
+            with self.subTest(citations=citations):
+                with self.assertRaisesRegex(ValueError, "Grouped results"):
+                    evaluate_questions([self.question], lambda query, top_k:
+                        [{"text": "Evidence B", "deals": citations}], self.deals)
+
+    def test_actual_semantic_search_output_connects_to_evaluator(self):
+        from src import semantic_search
+        deals = self.deals.assign(series="", filing_date="2024-01-01",
+            asset_class="Auto loan", doc_url="https://example.test/filing",
+            text_file="unused.txt")
+        text = "Evidence B and Evidence C"
+        records = [{"accession": accession, "text": text, "section_kind": "body",
+                    "section_title": "Servicing", "page_start": "1",
+                    "char_start": 0, "char_end": len(text)} for accession in ("b", "c")]
+        with patch.object(semantic_search, "load_cached", return_value={
+                "shas": ["shared"], "matrix": np.array([[1., 0.]]), "model": None}), \
+             patch.object(semantic_search, "load_passages", return_value=(
+                 ["shared"], [text], {"shared": records})), \
+             patch.object(semantic_search, "load_deals", return_value=deals), \
+             patch.object(semantic_search, "embed_query", return_value=np.array([[1., 0.]])):
+            row = evaluate_questions([self.question],
+                partial(semantic_search.search, backend="tfidf"), deals)[0]
+        self.assertTrue(row["passed_at_k"])
+        hits = json.loads(row["retrieved_passages"])
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["accessions"], ["b", "c"])
 
     def test_requires_supporting_passage_for_each_expected_deal(self):
         question = dict(self.question)

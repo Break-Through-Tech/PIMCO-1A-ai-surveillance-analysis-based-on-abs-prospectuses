@@ -2,14 +2,16 @@
 
 The retrieval backend is supplied by Milestone 2 Task 3. It must expose a
 function accepting ``query`` and ``top_k`` and return ranked records containing
-``accession`` and non-empty ``text`` fields; ``chunk_id`` is recommended.
+non-empty ``text`` and either an ``accession`` or a ``deals`` list containing
+accessions. Shared passages count as one rank, even when they cite many deals.
 
 Usage:
-    python src/evaluate_retrieval.py --retriever semantic_search:search_chunks
+    python src/evaluate_retrieval.py --retriever semantic_search:search
 """
 
 import argparse
 import csv
+from functools import partial
 import importlib
 import json
 import re
@@ -159,7 +161,14 @@ def _result_records(results):
     else:
         records = list(results)
     for record in records:
-        if not isinstance(record, Mapping) or not record.get("accession"):
+        if not isinstance(record, Mapping):
+            raise ValueError("Retriever results must be passage records")
+        if "deals" in record:
+            if (not isinstance(record["deals"], list) or not record["deals"]
+                    or any(not isinstance(d, Mapping) or not d.get("accession")
+                           for d in record["deals"])):
+                raise ValueError("Grouped results need non-empty deals with accessions")
+        elif not record.get("accession"):
             raise ValueError("Retriever results must be records with a non-empty accession")
     return records
 
@@ -191,25 +200,33 @@ def evaluate_questions(questions: Sequence[dict], retriever: Callable,
         ranked_accessions, diagnostics = [], []
         deal_ranks, evidence_ranks = {}, {}
         for rank, result in enumerate(results, 1):
-            accession = str(result["accession"])
-            if accession not in deal_names:
-                raise ValueError(f"Retriever returned accession {accession!r} absent from deal_index.csv")
+            # A shared passage still occupies one result slot, regardless of
+            # how many filings contain it. Never flatten before top-five scoring.
+            citations = result.get("deals", [{"accession": result.get("accession")}])
+            accessions = list(dict.fromkeys(str(d["accession"]) for d in citations))
             text = result.get("text")
             if not isinstance(text, str) or not text.strip():
                 raise ValueError("Retriever results need non-empty text to check supporting passages")
-            if accession not in deal_ranks:
-                ranked_accessions.append(accession)
-                deal_ranks[accession] = rank
-            matched = accession in expected and any(
-                evidence["accession"] == accession
-                and normalize_evidence(evidence["quote"]) in normalize_evidence(text)
-                for evidence in question["supporting_passages"]
-            )
-            if matched:
-                evidence_ranks.setdefault(accession, rank)
-            diagnostics.append({"rank": rank, "accession": accession,
+            matched_accessions = []
+            for accession in accessions:
+                if accession not in deal_names:
+                    raise ValueError(f"Retriever returned accession {accession!r} absent from deal_index.csv")
+                if accession not in deal_ranks:
+                    ranked_accessions.append(accession)
+                    deal_ranks[accession] = rank
+                matched = accession in expected and any(
+                    evidence["accession"] == accession
+                    and normalize_evidence(evidence["quote"]) in normalize_evidence(text)
+                    for evidence in question["supporting_passages"]
+                )
+                if matched:
+                    evidence_ranks.setdefault(accession, rank)
+                    matched_accessions.append(accession)
+            diagnostics.append({"rank": rank, "accessions": accessions,
                 "chunk_id": result.get("chunk_id", ""), "text": text,
-                "supporting_quote_matched": matched})
+                "score": result.get("score"), "deals": citations,
+                "supporting_quote_matched": bool(matched_accessions),
+                "matched_expected_deal_ids": matched_accessions})
         found = [a for a in expected if a in deal_ranks]
         missing = [a for a in expected if a not in deal_ranks]
         supported = [a for a in expected if a in evidence_ranks]
@@ -253,9 +270,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--retriever",
-        default="semantic_search:search_chunks",
+        default="semantic_search:search",
         help="Task 3 search function in module:function form",
     )
+    parser.add_argument("--backend", choices=("openai", "tfidf"), default="openai",
+                        help="Search backend; tfidf is a local lexical baseline")
     parser.add_argument("--questions", type=Path, default=DEFAULT_QUESTIONS)
     parser.add_argument("--deals", type=Path, default=DEFAULT_DEALS)
     parser.add_argument("--chunk-index", type=Path, default=DEFAULT_CHUNK_INDEX)
@@ -268,10 +287,16 @@ def main():
     validate_supporting_passages(questions, args.chunk_index, args.chunks_dir)
     deals = pd.read_csv(args.deals, dtype=str).fillna("")
     retriever = load_retriever(args.retriever)
+    if args.retriever in ("semantic_search:search", "src.semantic_search:search"):
+        retriever = partial(retriever, backend=args.backend)
     report = evaluate_questions(
         questions, retriever, deals, top_k=args.top_k
     )
 
+    for row in report:
+        row["retriever"] = args.retriever
+        row["backend"] = args.backend if args.retriever in (
+            "semantic_search:search", "src.semantic_search:search") else "custom"
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=report[0].keys())
