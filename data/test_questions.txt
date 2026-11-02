@@ -1,0 +1,40 @@
+# ABS due diligence test questions, from Simon Fan via Darshan, October 2026.
+# One question per line. Blank lines and lines starting with # are ignored.
+# Category headings are comments so the file stays trivially parseable.
+
+# Collateral Ownership & True Sale
+Has legal title to the receivables been transferred via a true sale at each step?
+Are any receivable transfers conditional, delayed, or subject to post-closing perfection actions?
+Are post-closing substitutions or repurchases permitted, and are they capped and objectively defined?
+Are vehicle titles perfected in the trust's name?
+
+# Custody, Control & Perfection
+Who holds the collateral and in what capacity?
+Is the collateral serviced by a third party?
+Is the collateral custodied by a third party?
+If so, what tier is the collateral custodian?
+How are documents custodied?
+If a third party is used, what tier is the third-party custodian?
+Are the documents custodied using third-party software (eVault)?
+Are the files custodied in paper form?
+Is there a mix of paper and electronic collateral files?
+
+# Double-Pledging & Warehouse Risk
+Is the collateral free and clear of liens?
+Were any receivables pledged to warehouse lenders, and how is release verified?
+Are there operational controls preventing the same receivable from being pledged to multiple trusts or facilities?
+
+# Commingling & Cash Control
+Where are collections initially deposited?
+What happens to collections in a servicer bankruptcy?
+What happens to collections in an issuer bankruptcy?
+Are collections segregated in a specific account?
+How long can collections stay in a servicer account?
+
+# Amendments, Waivers & Control Rights
+Which class is the Controlling Class, and can it waive defaults or amend economics without minority consent?
+Can rating-agency confirmation substitute for noteholder consent?
+
+# Enforcement & Post-Default Realities
+Who controls liquidation timing and method after default?
+Are liquidation proceeds distributed differently than ongoing collections?
