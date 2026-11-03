@@ -120,3 +120,47 @@ re-embedding costs money.
 minimum 0.929. All 8 validation checks pass, including a replay of Milestone 1
 keyword search confirming nothing findable before chunking became unfindable
 after.
+
+---
+
+## Semantic Search
+
+Milestone 2 Task 3. Finds the passages that answer a question by meaning, not
+exact words. The questions and the filings use different vocabulary. "eVault"
+appears in none of the 129 filings, while the same concept appears as
+"electronic contract" in 78% of them.
+
+Metadata filters run before ranking, so a question can be asked about one
+issuer or one deal. Names match word by word, so `Toyota`, `Honda 2024` and
+`Verizon 2025-5` all work. The series counts as part of the name, because
+Verizon and Amex reuse one deal name for every series.
+
+Each distinct passage is embedded once. Half the corpus is boilerplate repeated
+across filings, so a result is a passage plus every deal that contains it, each
+with its prospectus page and SEC link.
+
+### Usage
+
+Needs `OPENAI_API_KEY` in `.env` and the chunks from the section above.
+
+```
+python src/embed.py openai --dry-run   # batches and cost, no API calls
+python src/embed.py openai             # writes data/vectors/, about $0.32
+python src/ask.py "where are collections initially deposited?" --issuer Toyota
+python src/ask.py "what credit enhancement supports the notes?" --issuer "Verizon 2025-5"
+python src/validate_retrieval.py openai   # 7 checks
+```
+
+`python src/embed.py` with no argument builds a free TF-IDF index instead, for
+working without a key. Pass `--backend tfidf` to `ask.py` to use it.
+
+From Python, which is how `src/answer.py` and a UI call it:
+
+```python
+from semantic_search import search
+hits = search("who is the custodian?", issuer="Honda", year="2025", top_k=5)
+```
+
+Each hit has `text`, `section_title`, `score`, `n_deals` and `deals`. Each deal
+has `deal_name`, `series`, `accession`, `filing_date`, `page` and `doc_url`.
+Paths are relative to the repository root, so run everything from there.
