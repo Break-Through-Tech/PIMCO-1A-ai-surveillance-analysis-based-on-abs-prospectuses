@@ -114,6 +114,56 @@ Deal name, asset class and SEC URL are not copied in. They live in
 is dropped during chunking, because re-chunking takes under a minute and
 re-embedding costs money.
 
+## Retrieval Evaluation
+
+Milestone 2 Task 2. `data/evaluation_questions.jsonl` contains a small gold set
+of natural-language questions, expected deal accessions, and supporting quotes.
+The evaluation checks the first five returned passages, before removing
+repeated deals. It reports correct-deal recall separately from supporting-passage
+recall. A supporting passage must contain an annotated quote from the expected
+accession, ignoring capitalization and whitespace. At least one annotated quote
+per expected deal must match for the question to pass. This does not judge
+unannotated paraphrases; review those manually and add verified alternate quotes.
+
+After extracting and chunking the documents, run the evaluator with the
+retrieval function provided by Task 3:
+
+```
+python src/run_extract.py
+python src/run_chunk.py
+python src/evaluate_retrieval.py --retriever semantic_search:search
+```
+
+The retrieval function must accept `query` and `top_k` arguments and return
+ranked records with non-empty `text` and either `accession` or a `deals` list
+containing accessions. The team search uses grouped `deals`: a passage shared
+by many deals counts as one result rank, and all its deals are checked.
+Only the question is sent to retrieval. The evaluator requests five passages by
+default (`--top-k` changes this). It verifies gold quotes against stored chunks
+before evaluation. `data/retrieval_evaluation.csv` contains separate deal and
+passage scores, missing evidence, and returned passage text, IDs and ranks.
+`passed_at_k` now means supporting evidence was found for every expected deal;
+`deal_passed_at_k` is the separate deal-only check. Missing result text is
+an interface error rather than an ordinary retrieval miss. `--candidate-k` was
+removed because scoring no longer collects distinct deals from 100 passages.
+`src/validate_search.py` remains a separate keyword-search smoke test.
+
+Run evaluator tests with `python -m unittest discover -s tests -v`.
+
+Local baseline (no API key; not an embedding-model quality result):
+
+```powershell
+python src/embed.py tfidf
+python src/evaluate_retrieval.py --backend tfidf --output data/retrieval_evaluation_tfidf.csv
+```
+
+For OpenAI semantic search, build or obtain matching OpenAI vectors, configure
+`OPENAI_API_KEY` locally, and run `python src/evaluate_retrieval.py`.
+Embedding and uncached queries use the API. Never commit API keys.
+The teammate's `validate_retrieval.py` checks search mechanics and citations;
+this evaluator complements it with annotated expected-deal and evidence scores.
+
+
 ### Results
 
 86,219 chunks across 128 deals, 43,027 distinct. Heading recall median 0.992,
