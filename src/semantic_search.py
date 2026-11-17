@@ -35,20 +35,46 @@ def load_deals():
     return pd.read_csv(INDEX, dtype=str).fillna("")
 
 
+def has_words(text, query):
+    """Every word of the query appears in text, in any order. The word "series"
+    is optional, since a series gets written both with and without it."""
+    return all(w in text for w in query.casefold().split() if w != "series")
+
+
+def by_name(deals, query, depositor=False):
+    """Rows the query names, so "Verizon 2025-5" or "Honda 2024" work as typed.
+
+    The series counts as part of the name. Verizon and Amex reuse one deal name
+    for every series, 18 filings that only the series tells apart. An exact
+    name wins outright, because every word of "Drive Auto Receivables Trust
+    2025-1" is also in the Santander Drive trust of the same series.
+    """
+    q = " ".join(query.casefold().split())
+    plain = deals.deal_name.str.casefold()
+    names = (plain + " " + deals.series.str.casefold()).str.strip()
+    exact = (plain == q) | (names == q)
+    if exact.any():
+        return exact
+    # One field at a time. Pooled with the depositor, "World Omni Auto
+    # Receivables Trust 2025-A" also matched the Select trust.
+    hit = names.map(lambda t: has_words(t, q))
+    if depositor:
+        hit |= deals.depositor_name.str.casefold().map(lambda t: has_words(t, q))
+    return hit
+
+
 def matching_accessions(deals, issuer=None, year=None, asset_class=None, deal=None):
     """Accessions passing the metadata filter. None of these is a text search."""
-    keep = deals
+    keep = pd.Series(True, index=deals.index)
     if issuer:
-        low = issuer.casefold()
-        keep = keep[keep.depositor_name.str.casefold().str.contains(low, regex=False)
-                    | keep.deal_name.str.casefold().str.contains(low, regex=False)]
+        keep &= by_name(deals, issuer, depositor=True)
     if deal:
-        keep = keep[keep.deal_name.str.casefold().str.contains(deal.casefold(), regex=False)]
+        keep &= by_name(deals, deal)
     if year:
-        keep = keep[keep.filing_year == str(year)]
+        keep &= deals.filing_year == str(year)
     if asset_class:
-        keep = keep[keep.asset_class.str.casefold() == str(asset_class).casefold()]
-    return set(keep.accession)
+        keep &= deals.asset_class.str.casefold() == str(asset_class).casefold()
+    return set(deals.accession[keep])
 
 
 # ask.py runs one question per process and pays ~10s opening a connection each

@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from ask import label
 from embed import DEFAULT_BACKEND, load_passages
 from semantic_search import load_deals, matching_accessions, search
 
@@ -120,6 +121,17 @@ def main():
         if len(texts) != len(hits):
             bad.append(f"{len(hits) - len(texts)} duplicate passages in top 10")
     results.append(check("F top results are distinct passages", bad))
+
+    # G. Every deal can be filtered to on its own, by the name ask.py prints for
+    # it. Verizon and Amex reuse one deal name across 18 filings.
+    bad = []
+    for row in deals.to_dict("records"):
+        for field in ("issuer", "deal"):
+            got = matching_accessions(deals, **{field: label(row)})
+            if got != {row["accession"]}:
+                bad.append(f"{field}={label(row)!r} matched {len(got)} deals")
+    results.append(check("G each deal can be isolated by its name", bad,
+                         f", {len(deals)} deals"))
 
     print("\n" + "=" * 70)
     passed = sum(results)

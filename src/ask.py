@@ -40,7 +40,7 @@ def label(deal):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("question")
-    ap.add_argument("--issuer", help="issuer or deal name, e.g. Toyota")
+    ap.add_argument("--issuer", help="issuer or deal, e.g. Toyota or 'Verizon 2025-5'")
     ap.add_argument("--year", help="filing year, e.g. 2025")
     ap.add_argument("--asset-class", help="e.g. 'Auto loan', CMBS")
     ap.add_argument("-k", type=int, default=5, help="passages to return")
